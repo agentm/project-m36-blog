@@ -1,11 +1,13 @@
 ---
-title: Persisting Haskell ADTs Has Never Been Easier
+title: Persisting Haskell ADTs The Relational Way
 author: AgentM
 ---
 
-Typical DBMSes suffer from a data type impedance mismatch with Haskell types. Using such DBMSes in Haskell is especially painful because Haskell has a very powerful typing system which the database promptly discards or "downsamples" due to lack of real type support.
+# Persisting Haskell ADTs The Relational Way
 
-Project:M36 is a DBMS which offers support for algebraic data types (ADTs) as first-class database-side values and support for record types to be marshaled from-and-to database tuples without any loss of type enforcement. Furthermore, database-side ADTs can be manipulated with database stored functions written in Haskell and preserved with constraints which can also be written in Haskell.
+Typical DBMSes suffer from a data type impedance mismatch with Haskell data types. Using such DBMSes in Haskell is especially painful because Haskell has a very powerful typing system which the database promptly discards or "downsamples" due to lack of real type support.
+
+Project:M36 is a DBMS which offers support for algebraic data types (ADTs) as first-class database-side values and support for record types to be marshaled from-and-to database tuples without any loss of type enforcement. Furthermore, database-side ADTs can be manipulated with database-side stored functions written in Haskell. Types can further be preserved with constraints which can also be written in Haskell.
 
 Let's take a closer look at the common [blog post schema example](https://github.com/agentm/project-m36/blob/master/examples/blog.hs) for an example of how these features all fit together.
 
@@ -36,9 +38,9 @@ data Category = Food | Cats | Photos | Other T.Text
   deriving (Atomable, Eq, Show, NFData, Binary, Generic)
 ```
 
-Note that the only database-specific requirements are that the models are instances of `Tupleable`, a type which can be derived from `Generic` to marshal the Haskell values to-and-from database values. No database-specific type decorations (such as specifying SQL types) is needed. The database types are Haskell types with no type-level enforcement lost.
+Note that the only database-specific requirements are that the record-based models are instances of `Tupleable`, a type which can be derived from `Generic` types to marshal the Haskell values to-and-from database values. No database-specific type decorations (such as specifying SQL types) is needed. The database types are Haskell types with no type-level enforcement lost. Each record becomes a tuple in the database with the Haskell attributes directly mapped to tuple attributes.
 
-The `Category` is an ADT which can be represented as a database value or `Atom`. Because the `Category` derives `Generic`, we can also derive `Atomable`.
+The blog's `Category` is an ADT which can be represented as a database value or `Atom`. Because the `Category` derives `Generic`, we can also derive `Atomable`. `Category` values are stored as ADTs in the database- no trickery is involved.
 
 Note that an SQL enumeration would not be able to emulate an ADT directly as a database value. In Project:M36, the ADT is also represented in the database as a value of the same type. The type impedance mismatch is resolved and no database-specific changes to the model are necessary.
 
@@ -61,13 +63,15 @@ createSchema sessionId conn = do
     toAddTypeExpr (Proxy :: Proxy Category),
     toDefineExpr (Proxy :: Proxy Blog) "blog",
     toDefineExpr (Proxy :: Proxy Comment) "comment",
-    databaseContextExprForForeignKey "blog_comment" ("comment", ["blogTitle"]) ("blog", ["title"]) ]
+    databaseContextExprForForeignKey "blog_comment" ("comment", ["blogTitle"]) ("blog", ["title"]),
+    databaseContextExprForUniqueKey "blog" ["title"]
+    ]
   pure ()
 ```
 
-Here we create an in-memory database (just for testing purposes) and use the `Tupleable` function `toDefineExpr` and `Atomable` function `toAddTypeExpr` to create expressions which we will execute against our database. Finally a foreign key constraints between blogs and comments ensures that each blog can have zero or more comments.
+Here we create an in-memory database (just for testing purposes) and use the `Tupleable` function `toDefineExpr` and `Atomable` function `toAddTypeExpr` to create expressions which we will execute against our database. A foreign key constraint between blogs and comments ensures that each blog can have zero or more comments. Finally, we add a uniqueness constraint on the blogs' titles.
 
-Naturally, if we wanted to store the database on disk or connect to a Project:M36 database server, we would configure that here as well.
+Naturally, if we wanted to store the database on disk or connect to a Project:M36 database server, we could configure that here.
 
 # Controllers and Views
 
@@ -96,7 +100,7 @@ listBlogs sessionId conn = do
         forM_ sortedBlogs $ \blog -> a ! href (toValue $ "/blog/" <> title blog) $ h2 (toHtml (title blog))
 ```
 
-First, we list all blog entries by querying the database for the relation variable "blog". Then, we convert from database tuples to our `Blog` values using `Tupleable`'s `fromTuple` function. Then, we sort then and insert them into our `blaze-html` template.
+First, we list all blog entries by querying the database for the relation variable "blog". Then, we convert from database tuples to our `Blog` values using `Tupleable`'s `fromTuple` function. Then, we sort them by date and insert them into our `blaze-html` template.
 
 ```Haskell
 showBlogEntry :: SessionId -> Connection -> ActionM ()
@@ -140,7 +144,7 @@ case eRel of
 
 After retrieving all the data we need for the page in one query, we extract the singleton blog post, if available, and then extract the comments from the relation-valued attribute as well as sort them by timestamp. Finally, we render the blog info, comments, and a comment form where users can add new comments (elided for brevity).
 
-Our final action is to add a comment from the previously-rendered form.
+Our final action adds a comment submitted from the previously-rendered form.
 
 ```Haskell
 addComment :: SessionId -> Connection -> ActionM ()            
