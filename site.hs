@@ -1,8 +1,8 @@
 --------------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
-import           Data.Monoid (mappend)
+--import           Data.Monoid (mappend)
 import           Hakyll
-
+import           Text.Pandoc.Options
 
 --------------------------------------------------------------------------------
 main :: IO ()
@@ -23,7 +23,12 @@ main = hakyll $ do
 
     match "posts/*" $ do
         route $ setExtension "html"
-        compile $ pandocCompiler
+        let readerOptions = defaultHakyllReaderOptions { readerExtensions =
+                                                         enableExtension Ext_raw_html (readerExtensions defaultHakyllReaderOptions) }
+
+            writerOptions = defaultHakyllWriterOptions { writerExtensions =
+                                                         enableExtension Ext_raw_html (writerExtensions defaultHakyllWriterOptions)}
+        compile $ pandocCompilerWith readerOptions writerOptions
             >>= loadAndApplyTemplate "templates/post.html"    postCtx
             >>= loadAndApplyTemplate "templates/default.html" postCtx
             >>= relativizeUrls
