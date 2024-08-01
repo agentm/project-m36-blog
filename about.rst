@@ -2,7 +2,7 @@
 title: About
 ---
 
-Project:M36 is a relational algebra engine setting out to prove that mathematical correctness not only does not impede RDBMS performance, but rather opens doors to new and mathematially-coherent optimizations.
+Project:M36 is a relational algebra engine setting out to prove that mathematical correctness not only does not impede RDBMS performance, but rather opens doors to new and mathematically-coherent optimizations.
 
 Project:M36 is written entirely in the Haskell programming language and is completely open source.
 
